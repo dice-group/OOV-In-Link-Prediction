@@ -13,6 +13,7 @@ class Dataset:
         self.valid_data = self.load_data(data_dir, data_type="valid")
         self.test_data = self.load_data(data_dir, data_type="test")
 
+
     @staticmethod
     def load_data(data_dir, data_type):
         with open("%s%s.txt" % (data_dir, data_type), "r") as f:
@@ -119,8 +120,11 @@ class Dataset:
 
         triples_contain_oov = []
         for i in data:
-            h, r, t = i[0], i[1], i[2]
-
+            try:
+                h, r, t = i[0], i[1], i[2]
+            except IndexError:
+                print(i)
+                exit(1)
             # 1. The head or tail entity is an OOV entity.
             if (h not in entities) or (t not in entities):
                 triples_contain_oov.append(i)
