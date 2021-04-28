@@ -13,7 +13,6 @@ class Dataset:
         self.valid_data = self.load_data(data_dir, data_type="valid")
         self.test_data = self.load_data(data_dir, data_type="test")
 
-
     @staticmethod
     def load_data(data_dir, data_type):
         with open("%s%s.txt" % (data_dir, data_type), "r") as f:
@@ -30,6 +29,22 @@ class Dataset:
     def get_entities(data):
         entities = sorted(list(set([d[0] for d in data] + [d[2] for d in data])))
         return entities
+
+    def get_mappings(self, triples, entity_idxs, relation_idxs):
+        sp_vocab = dict()
+        po_vocab = dict()
+        so_vocab = dict()
+
+        for i in triples:
+            s, p, o = i[0], i[1], i[2]
+            s_idx, p_idx, o_idx = entity_idxs[s], relation_idxs[p], entity_idxs[o]
+
+            sp_vocab.setdefault((s_idx, p_idx),[]).append(o_idx)
+            so_vocab.setdefault((s_idx, o_idx), []).append(p_idx)
+
+            po_vocab.setdefault((p_idx, o_idx), []).append(s_idx)
+
+        return sp_vocab,so_vocab,po_vocab
 
     @staticmethod
     def descriptive_statistics(data, info):
@@ -112,19 +127,20 @@ class Dataset:
             print(f"{v:2} {c[v]:.3f}")
         """
 
-    @staticmethod
-    def describe_oov(data, entities,info):
+    def describe_oov(self, data, entities, info):
         triples_contain_oov_entity_both_position = []
         triples_contain_oov_entity_head = []
         triples_contain_oov_entity_tail = []
 
         triples_contain_oov = []
+
+        found_entities = set()
         for i in data:
-            try:
-                h, r, t = i[0], i[1], i[2]
-            except IndexError:
-                print(i)
-                exit(1)
+            h, r, t = i[0], i[1], i[2]
+
+            found_entities.add(h)
+            found_entities.add(t)
+
             # 1. The head or tail entity is an OOV entity.
             if (h not in entities) or (t not in entities):
                 triples_contain_oov.append(i)
@@ -142,6 +158,8 @@ class Dataset:
                     triples_contain_oov_entity_both_position.append(i)
         print('\n')
         print(f'############### DESCRIPTION {info} ###############')
+        print(f'{len(found_entities - entities)} out-of-vocabulary entities.')
+
         print(
             f'{len(triples_contain_oov)} triples contain OOV entities. \t {len(triples_contain_oov) / len(data) * 100:.3f} % of triples contain OOV entities')
 
