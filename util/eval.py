@@ -38,7 +38,7 @@ class Evaluator:
             # 4.1 {x | (s,p,x) in Train or Valid or Test }
             filt = self.sp_vocab[(s_idx, p_idx)]
             target_value = pred_tail[o_idx].item()
-            pred_tail[filt] = 0.0
+            pred_tail[filt] = -np.Inf
             pred_tail[o_idx] = target_value
             _, sort_tail_idxs = torch.sort(pred_tail, descending=True)
             sort_tail_idxs = sort_tail_idxs.cpu().numpy()
@@ -83,4 +83,58 @@ class Evaluator:
         for k, v in reciprocal_rank_per_relation.items():
             # ranks => sum of head and tail entities given a relation
             results[f'MRR_{k}'] = sum(v) / (2 * len(v))
+        return results
+
+    def filtered_relation_prediction(self, triples, model):
+        results = dict()
+
+        num_param = sum([p.numel() for p in model.parameters()])
+        results['Number_param'] = num_param
+        reciprocal_ranks = []
+        hits = dict()
+
+        for t in triples:
+            # 1. Get a test triple
+            s_str, p_str, o_str = t[0], t[1], t[2]
+            # 2. Map (1) to indexes.
+            s_idx = self.entity_idxs[s_str]
+            p_idx = self.relation_idxs[p_str]
+            o_idx = self.entity_idxs[o_str]
+
+            # 3. Convert index into tensor
+            s1 = torch.Tensor([s_idx]).long()
+            p1 = torch.Tensor([p_idx]).long()
+            o1 = torch.Tensor([o_idx]).long()
+
+            all_relations = torch.arange(0, len(self.relation_idxs)).long()
+
+            # 2. Predict missing relations
+            predictions = model.score_spo(s=s1.repeat(len(self.relation_idxs), ),
+                                          p=all_relations,
+                                          o=o1.repeat(len(self.relation_idxs), ))
+            # 4.1 {x | (s,x,o) in Train or Valid or Test }
+            filt = self.so_vocab[(s_idx, o_idx)]
+            target_value = predictions[p1].item()
+            predictions[filt] = -np.Inf
+            predictions[p1] = target_value
+
+            _, sort_idxs = torch.sort(predictions, descending=True)
+            sort_idxs = sort_idxs.cpu().numpy()
+            rank_of_missing_relation = np.where(sort_idxs == p_idx)[0][0]
+
+            # Add 1 because np.where(.) start from 0. Perfect prediction (1/0) hence ill defined.
+            rank_of_missing_relation += 1
+
+            for hits_level in range(1, 11):
+                I = 1 if rank_of_missing_relation <= hits_level else 0
+                if I > 0:
+                    hits.setdefault(hits_level, []).append(I)
+
+            reciprocal_ranks.append(1 / rank_of_missing_relation)
+
+        reciprocal_ranks = np.array(reciprocal_ranks).sum() / (len(triples))
+        results['MRR'] = reciprocal_ranks
+        for hits_level, scores in hits.items():
+            results[f'Hits@{hits_level}'] = sum(scores) / (len(triples))
+
         return results
