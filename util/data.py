@@ -39,12 +39,12 @@ class Dataset:
             s, p, o = i[0], i[1], i[2]
             s_idx, p_idx, o_idx = entity_idxs[s], relation_idxs[p], entity_idxs[o]
 
-            sp_vocab.setdefault((s_idx, p_idx),[]).append(o_idx)
+            sp_vocab.setdefault((s_idx, p_idx), []).append(o_idx)
             so_vocab.setdefault((s_idx, o_idx), []).append(p_idx)
 
             po_vocab.setdefault((p_idx, o_idx), []).append(s_idx)
 
-        return sp_vocab,so_vocab,po_vocab
+        return sp_vocab, so_vocab, po_vocab
 
     @staticmethod
     def descriptive_statistics(data, info):
@@ -70,9 +70,13 @@ class Dataset:
         print(f'############### DESCRIPTION {info} ###############')
         print(f'Number of triples = {len(data)}')
         print(f'Number of unique entities = {len(unique_entities)}')
-        # print(f'Number of unique head entities = {len(unique_head_entities)}')
-        # print(f'Number of unique tail entities = {len(unique_tail_entities)}')
         print(f'Number of relations = {len(edges)}')
+        print('Most frequent relations')
+
+        for it, k in enumerate(sorted(edges, key=lambda k: len(edges[k]), reverse=True)):
+            if it == 20:
+                break
+            print(f'{it}. {k} freq. {len(edges[k])}')
 
         print('\n')
         # Degree of nodes.
